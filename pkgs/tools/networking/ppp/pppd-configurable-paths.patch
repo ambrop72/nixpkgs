@@ -1,0 +1,976 @@
+diff --git a/pppd/Makefile.linux b/pppd/Makefile.linux
+index a74c914..d7c3f46 100644
+--- a/pppd/Makefile.linux
++++ b/pppd/Makefile.linux
+@@ -13,16 +13,16 @@ TARGETS = pppd
+ 
+ PPPDSRCS = main.c magic.c fsm.c lcp.c ipcp.c upap.c chap-new.c md5.c ccp.c \
+ 	   ecp.c ipxcp.c auth.c options.c sys-linux.c md4.c chap_ms.c \
+-	   demand.c utils.c tty.c eap.c chap-md5.c session.c
++	   demand.c utils.c tty.c eap.c chap-md5.c session.c pppd_paths.c
+ 
+ HEADERS = ccp.h session.h chap-new.h ecp.h fsm.h ipcp.h \
+ 	ipxcp.h lcp.h magic.h md5.h patchlevel.h pathnames.h pppd.h \
+-	upap.h eap.h
++	upap.h eap.h pppd_paths.h
+ 
+ MANPAGES = pppd.8
+ PPPDOBJS = main.o magic.o fsm.o lcp.o ipcp.o upap.o chap-new.o md5.o ccp.o \
+ 	   ecp.o auth.o options.o demand.o utils.o sys-linux.o ipxcp.o tty.o \
+-	   eap.o chap-md5.o session.o
++	   eap.o chap-md5.o session.o pppd_paths.o
+ 
+ #
+ # include dependencies if present
+diff --git a/pppd/Makefile.sol2 b/pppd/Makefile.sol2
+index 45b6b62..4bc8596 100644
+--- a/pppd/Makefile.sol2
++++ b/pppd/Makefile.sol2
+@@ -10,7 +10,7 @@ LIBS	= -lsocket -lnsl
+ 
+ OBJS	=  main.o magic.o fsm.o lcp.o ipcp.o upap.o chap-new.o eap.o md5.o \
+ 	tty.o ccp.o ecp.o auth.o options.o demand.o utils.o sys-solaris.o \
+-	chap-md5.o session.o
++	chap-md5.o session.o pppd_paths.o
+ 
+ # Solaris uses shadow passwords
+ CFLAGS	+= -DHAS_SHADOW
+diff --git a/pppd/auth.c b/pppd/auth.c
+index 4271af6..b3d101b 100644
+--- a/pppd/auth.c
++++ b/pppd/auth.c
+@@ -113,6 +113,7 @@
+ #include "cbcp.h"
+ #endif
+ #include "pathnames.h"
++#include "pppd_paths.h"
+ #include "session.h"
+ 
+ static const char rcsid[] = RCSID;
+@@ -689,7 +690,7 @@ link_down(unit)
+ 	if (auth_script_state == s_up && auth_script_pid == 0) {
+ 	    update_link_stats(unit);
+ 	    auth_script_state = s_down;
+-	    auth_script(_PATH_AUTHDOWN);
++	    auth_script(path_get_simple(PATH_ID_AUTHDOWN));
+ 	}
+     }
+     if (!doing_multilink) {
+@@ -821,7 +822,7 @@ network_phase(unit)
+ 	auth_state = s_up;
+ 	if (auth_script_state == s_down && auth_script_pid == 0) {
+ 	    auth_script_state = s_up;
+-	    auth_script(_PATH_AUTHUP);
++	    auth_script(path_get_simple(PATH_ID_AUTHUP));
+ 	}
+     }
+ 
+@@ -1410,7 +1411,7 @@ check_passwd(unit, auser, userlen, apasswd, passwdlen, msg)
+      * Open the file of pap secrets and scan for a suitable secret
+      * for authenticating this user.
+      */
+-    filename = _PATH_UPAPFILE;
++    filename = path_get_simple(PATH_ID_UPAPFILE);
+     addrs = opts = NULL;
+     ret = UPAP_AUTHNAK;
+     f = fopen(filename, "r");
+@@ -1510,7 +1511,7 @@ null_login(unit)
+      * Open the file of pap secrets and scan for a suitable secret.
+      */
+     if (ret <= 0) {
+-	filename = _PATH_UPAPFILE;
++	filename = path_get_simple(PATH_ID_UPAPFILE);
+ 	addrs = NULL;
+ 	f = fopen(filename, "r");
+ 	if (f == NULL)
+@@ -1558,7 +1559,7 @@ get_pap_passwd(passwd)
+ 	    return ret;
+     }
+ 
+-    filename = _PATH_UPAPFILE;
++    filename = path_get_simple(PATH_ID_UPAPFILE);
+     f = fopen(filename, "r");
+     if (f == NULL)
+ 	return 0;
+@@ -1596,7 +1597,7 @@ have_pap_secret(lacks_ipp)
+ 	    return ret;
+     }
+ 
+-    filename = _PATH_UPAPFILE;
++    filename = path_get_simple(PATH_ID_UPAPFILE);
+     f = fopen(filename, "r");
+     if (f == NULL)
+ 	return 0;
+@@ -1641,7 +1642,7 @@ have_chap_secret(client, server, need_ip, lacks_ipp)
+ 	}
+     }
+ 
+-    filename = _PATH_CHAPFILE;
++    filename = path_get_simple(PATH_ID_CHAPFILE);
+     f = fopen(filename, "r");
+     if (f == NULL)
+ 	return 0;
+@@ -1683,7 +1684,7 @@ have_srp_secret(client, server, need_ip, lacks_ipp)
+     char *filename;
+     struct wordlist *addrs;
+ 
+-    filename = _PATH_SRPFILE;
++    filename = path_get_simple(PATH_ID_SRPFILE);
+     f = fopen(filename, "r");
+     if (f == NULL)
+ 	return 0;
+@@ -1736,7 +1737,7 @@ get_secret(unit, client, server, secret, secret_len, am_server)
+ 	    return 0;
+ 	}
+     } else {
+-	filename = _PATH_CHAPFILE;
++	filename = path_get_simple(PATH_ID_CHAPFILE);
+ 	addrs = NULL;
+ 	secbuf[0] = 0;
+ 
+@@ -1794,7 +1795,7 @@ get_srp_secret(unit, client, server, secret, am_server)
+     if (!am_server && passwd[0] != '\0') {
+ 	strlcpy(secret, passwd, MAXWORDLEN);
+     } else {
+-	filename = _PATH_SRPFILE;
++	filename = path_get_simple(PATH_ID_SRPFILE);
+ 	addrs = NULL;
+ 
+ 	fp = fopen(filename, "r");
+@@ -2315,13 +2316,13 @@ auth_script_done(arg)
+     case s_up:
+ 	if (auth_state == s_down) {
+ 	    auth_script_state = s_down;
+-	    auth_script(_PATH_AUTHDOWN);
++	    auth_script(path_get_simple(PATH_ID_AUTHDOWN));
+ 	}
+ 	break;
+     case s_down:
+ 	if (auth_state == s_up) {
+ 	    auth_script_state = s_up;
+-	    auth_script(_PATH_AUTHUP);
++	    auth_script(path_get_simple(PATH_ID_AUTHUP));
+ 	}
+ 	break;
+     }
+diff --git a/pppd/eap.c b/pppd/eap.c
+index 6ea6c1f..f421d4e 100644
+--- a/pppd/eap.c
++++ b/pppd/eap.c
+@@ -64,6 +64,7 @@
+ #include "pathnames.h"
+ #include "md5.h"
+ #include "eap.h"
++#include "pppd_paths.h"
+ 
+ #ifdef USE_SRP
+ #include <t_pwd.h>
+@@ -1204,12 +1205,7 @@ name_of_pn_file()
+ 		errno = EINVAL;
+ 		return (NULL);
+ 	}
+-	file = _PATH_PSEUDONYM;
+-	pl = strlen(user) + strlen(file) + 2;
+-	path = malloc(pl);
+-	if (path == NULL)
+-		return (NULL);
+-	(void) slprintf(path, pl, "%s/%s", user, file);
++	path = path_resolve(PATH_ID_PSEUDONYM, 1, user);
+ 	if (!pnlogged) {
+ 		dbglog("pseudonym file: %s", path);
+ 		pnlogged = 1;
+diff --git a/pppd/ipcp.c b/pppd/ipcp.c
+index e9738fe..6f576ae 100644
+--- a/pppd/ipcp.c
++++ b/pppd/ipcp.c
+@@ -60,6 +60,7 @@
+ #include "fsm.h"
+ #include "ipcp.h"
+ #include "pathnames.h"
++#include "pppd_paths.h"
+ 
+ static const char rcsid[] = RCSID;
+ 
+@@ -1755,7 +1756,7 @@ ip_demand_conf(u)
+     }
+     if (!sifaddr(u, wo->ouraddr, wo->hisaddr, GetMask(wo->ouraddr)))
+ 	return 0;
+-    ipcp_script(_PATH_IPPREUP, 1);
++    ipcp_script(path_get_simple(PATH_ID_IPPREUP), 1);
+     if (!sifup(u))
+ 	return 0;
+     if (!sifnpmode(u, PPP_IP, NPMODE_QUEUE))
+@@ -1902,7 +1903,7 @@ ipcp_up(f)
+ #endif
+ 
+ 	/* run the pre-up script, if any, and wait for it to finish */
+-	ipcp_script(_PATH_IPPREUP, 1);
++	ipcp_script(path_get_simple(PATH_ID_IPPREUP), 1);
+ 
+ 	/* bring the interface up for IP */
+ 	if (!sifup(f->unit)) {
+@@ -1958,7 +1959,7 @@ ipcp_up(f)
+      */
+     if (ipcp_script_state == s_down && ipcp_script_pid == 0) {
+ 	ipcp_script_state = s_up;
+-	ipcp_script(_PATH_IPUP, 0);
++	ipcp_script(path_get_simple(PATH_ID_IPUP), 0);
+     }
+ }
+ 
+@@ -2008,7 +2009,7 @@ ipcp_down(f)
+     /* Execute the ip-down script */
+     if (ipcp_script_state == s_up && ipcp_script_pid == 0) {
+ 	ipcp_script_state = s_down;
+-	ipcp_script(_PATH_IPDOWN, 0);
++	ipcp_script(path_get_simple(PATH_ID_IPDOWN), 0);
+     }
+ }
+ 
+@@ -2062,13 +2063,13 @@ ipcp_script_done(arg)
+     case s_up:
+ 	if (ipcp_fsm[0].state != OPENED) {
+ 	    ipcp_script_state = s_down;
+-	    ipcp_script(_PATH_IPDOWN, 0);
++	    ipcp_script(path_get_simple(PATH_ID_IPDOWN), 0);
+ 	}
+ 	break;
+     case s_down:
+ 	if (ipcp_fsm[0].state == OPENED) {
+ 	    ipcp_script_state = s_up;
+-	    ipcp_script(_PATH_IPUP, 0);
++	    ipcp_script(path_get_simple(PATH_ID_IPUP), 0);
+ 	}
+ 	break;
+     }
+@@ -2115,9 +2116,9 @@ create_resolv(peerdns1, peerdns2)
+ {
+     FILE *f;
+ 
+-    f = fopen(_PATH_RESOLV, "w");
++    f = fopen(path_get_simple(PATH_ID_RESOLV), "w");
+     if (f == NULL) {
+-	error("Failed to create %s: %m", _PATH_RESOLV);
++	error("Failed to create %s: %m", path_get_simple(PATH_ID_RESOLV));
+ 	return;
+     }
+ 
+@@ -2128,7 +2129,7 @@ create_resolv(peerdns1, peerdns2)
+ 	fprintf(f, "nameserver %s\n", ip_ntoa(peerdns2));
+ 
+     if (ferror(f))
+-	error("Write failed to %s: %m", _PATH_RESOLV);
++	error("Write failed to %s: %m", path_get_simple(PATH_ID_RESOLV));
+ 
+     fclose(f);
+ }
+diff --git a/pppd/ipv6cp.c b/pppd/ipv6cp.c
+index 356ff84..788cf82 100644
+--- a/pppd/ipv6cp.c
++++ b/pppd/ipv6cp.c
+@@ -167,6 +167,7 @@
+ #include "ipv6cp.h"
+ #include "magic.h"
+ #include "pathnames.h"
++#include "pppd_paths.h"
+ 
+ static const char rcsid[] = RCSID;
+ 
+@@ -1269,7 +1270,7 @@ ipv6cp_up(f)
+      */
+     if (ipv6cp_script_state == s_down && ipv6cp_script_pid == 0) {
+ 	ipv6cp_script_state = s_up;
+-	ipv6cp_script(_PATH_IPV6UP);
++	ipv6cp_script(path_get_simple(PATH_ID_IPV6UP));
+     }
+ }
+ 
+@@ -1321,7 +1322,7 @@ ipv6cp_down(f)
+     /* Execute the ipv6-down script */
+     if (ipv6cp_script_state == s_up && ipv6cp_script_pid == 0) {
+ 	ipv6cp_script_state = s_down;
+-	ipv6cp_script(_PATH_IPV6DOWN);
++	ipv6cp_script(path_get_simple(PATH_ID_IPV6DOWN));
+     }
+ }
+ 
+@@ -1364,13 +1365,13 @@ ipv6cp_script_done(arg)
+     case s_up:
+ 	if (ipv6cp_fsm[0].state != OPENED) {
+ 	    ipv6cp_script_state = s_down;
+-	    ipv6cp_script(_PATH_IPV6DOWN);
++	    ipv6cp_script(path_get_simple(PATH_ID_IPV6DOWN));
+ 	}
+ 	break;
+     case s_down:
+ 	if (ipv6cp_fsm[0].state == OPENED) {
+ 	    ipv6cp_script_state = s_up;
+-	    ipv6cp_script(_PATH_IPV6UP);
++	    ipv6cp_script(path_get_simple(PATH_ID_IPV6UP));
+ 	}
+ 	break;
+     }
+diff --git a/pppd/ipxcp.c b/pppd/ipxcp.c
+index 7b2343e..26f790d 100644
+--- a/pppd/ipxcp.c
++++ b/pppd/ipxcp.c
+@@ -61,6 +61,7 @@
+ #include "ipxcp.h"
+ #include "pathnames.h"
+ #include "magic.h"
++#include "pppd_paths.h"
+ 
+ static const char rcsid[] = RCSID;
+ 
+@@ -1358,7 +1359,7 @@ ipxcp_up(f)
+      *	/etc/ppp/ipx-up interface tty speed local-IPX remote-IPX
+      */
+ 
+-    ipxcp_script (f, _PATH_IPXUP);
++    ipxcp_script (f, path_get_simple(PATH_ID_IPXUP));
+ }
+ 
+ /*
+@@ -1381,7 +1382,7 @@ ipxcp_down(f)
+     cipxfaddr(f->unit);
+     sifnpmode(f->unit, PPP_IPX, NPMODE_DROP);
+     sifdown(f->unit);
+-    ipxcp_script (f, _PATH_IPXDOWN);
++    ipxcp_script (f, path_get_simple(PATH_ID_IPXDOWN));
+ }
+ 
+ 
+diff --git a/pppd/main.c b/pppd/main.c
+index 6d50d1b..3adc63c 100644
+--- a/pppd/main.c
++++ b/pppd/main.c
+@@ -105,6 +105,7 @@
+ #include "ccp.h"
+ #include "ecp.h"
+ #include "pathnames.h"
++#include "pppd_paths.h"
+ 
+ #ifdef USE_TDB
+ #include "tdb.h"
+@@ -363,7 +364,7 @@ main(argc, argv)
+      * Parse, in order, the system options file, the user's options file,
+      * and the command line arguments.
+      */
+-    if (!options_from_file(_PATH_SYSOPTIONS, !privileged, 0, 1)
++    if (!options_from_file(path_get_simple(PATH_ID_SYSOPTIONS), !privileged, 0, 1)
+ 	|| !options_from_user()
+ 	|| !parse_args(argc-1, argv+1))
+ 	exit(EXIT_OPTION_ERROR);
+@@ -436,12 +437,12 @@ main(argc, argv)
+     sys_init();
+ 
+ #ifdef USE_TDB
+-    pppdb = tdb_open(_PATH_PPPDB, 0, 0, O_RDWR|O_CREAT, 0644);
++    pppdb = tdb_open(path_get_simple(PATH_ID_PPPDB), 0, 0, O_RDWR|O_CREAT, 0644);
+     if (pppdb != NULL) {
+ 	slprintf(db_key, sizeof(db_key), "pppd%d", getpid());
+ 	update_db_entry();
+     } else {
+-	warn("Warning: couldn't open ppp database %s", _PATH_PPPDB);
++	warn("Warning: couldn't open ppp database %s", path_get_simple(PATH_ID_PPPDB));
+ 	if (multilink) {
+ 	    warn("Warning: disabling multilink");
+ 	    multilink = 0;
+@@ -810,8 +811,8 @@ create_pidfile(pid)
+ {
+     FILE *pidfile;
+ 
+-    slprintf(pidfilename, sizeof(pidfilename), "%s%s.pid",
+-	     _PATH_VARRUN, ifname);
++    slprintf(pidfilename, sizeof(pidfilename), "%s/%s.pid",
++	     path_get_simple(PATH_ID_VARRUN), ifname);
+     if ((pidfile = fopen(pidfilename, "w")) != NULL) {
+ 	fprintf(pidfile, "%d\n", pid);
+ 	(void) fclose(pidfile);
+@@ -830,8 +831,8 @@ create_linkpidfile(pid)
+     if (linkname[0] == 0)
+ 	return;
+     script_setenv("LINKNAME", linkname, 1);
+-    slprintf(linkpidfile, sizeof(linkpidfile), "%sppp-%s.pid",
+-	     _PATH_VARRUN, linkname);
++    slprintf(linkpidfile, sizeof(linkpidfile), "%s/ppp-%s.pid",
++	     path_get_simple(PATH_ID_VARRUN), linkname);
+     if ((pidfile = fopen(linkpidfile, "w")) != NULL) {
+ 	fprintf(pidfile, "%d\n", pid);
+ 	if (ifname[0])
+@@ -1679,7 +1680,7 @@ device_script(program, in, out, dont_wait)
+     if (log_to_fd >= 0)
+ 	errfd = log_to_fd;
+     else
+-	errfd = open(_PATH_CONNERRS, O_WRONLY | O_APPEND | O_CREAT, 0600);
++	errfd = open(path_get_simple(PATH_ID_CONNERRS), O_WRONLY | O_APPEND | O_CREAT, 0600);
+ 
+     ++conn_running;
+     pid = safe_fork(in, out, errfd);
+diff --git a/pppd/options.c b/pppd/options.c
+index f66b765..1596d30 100644
+--- a/pppd/options.c
++++ b/pppd/options.c
+@@ -74,6 +74,7 @@
+ 
+ #include "pppd.h"
+ #include "pathnames.h"
++#include "pppd_paths.h"
+ 
+ #if defined(ultrix) || defined(NeXT)
+ char *strdup __P((char *));
+@@ -151,6 +152,7 @@ static char logfile_name[MAXPATHLEN];	/* name of log file */
+  * Prototypes
+  */
+ static int setdomain __P((char **));
++static int setpath __P((char **));
+ static int readfile __P((char **));
+ static int callfile __P((char **));
+ static int showversion __P((char **));
+@@ -299,6 +301,10 @@ option_t general_options[] = {
+       "Unset user environment variable",
+       OPT_A2PRINTER | OPT_NOPRINT, (void *)user_unsetprint },
+ 
++    { "path", o_special, (void *)setpath,
++      "Change one of the default paths",
++      OPT_PRIO | OPT_PRIV | OPT_A2STRVAL },
++
+ #ifdef HAVE_MULTILINK
+     { "multilink", o_bool, &multilink,
+       "Enable multilink operation", OPT_PRIO | 1 },
+@@ -485,20 +491,14 @@ err:
+ int
+ options_from_user()
+ {
+-    char *user, *path, *file;
++    char *user, *path;
+     int ret;
+     struct passwd *pw;
+-    size_t pl;
+ 
+     pw = getpwuid(getuid());
+     if (pw == NULL || (user = pw->pw_dir) == NULL || user[0] == 0)
+ 	return 1;
+-    file = _PATH_USEROPT;
+-    pl = strlen(user) + strlen(file) + 2;
+-    path = malloc(pl);
+-    if (path == NULL)
+-	novm("init file name");
+-    slprintf(path, pl, "%s/%s", user, file);
++    path = path_resolve(PATH_ID_USEROPT, 1, user);
+     option_priority = OPRIO_CFGFILE;
+     ret = options_from_file(path, 0, 1, privileged);
+     free(path);
+@@ -516,24 +516,25 @@ options_from_user()
+ int
+ options_for_tty()
+ {
+-    char *dev, *path, *p;
++    char *dev, *newdev, *path, *p;
+     int ret;
+-    size_t pl;
+ 
+     dev = devnam;
+     if ((p = strstr(dev, "/dev/")) != NULL)
+ 	dev = p + 5;
+     if (dev[0] == 0 || strcmp(dev, "tty") == 0)
+ 	return 1;		/* don't look for /etc/ppp/options.tty */
+-    pl = strlen(_PATH_TTYOPT) + strlen(dev) + 1;
+-    path = malloc(pl);
+-    if (path == NULL)
+-	novm("tty init file name");
+-    slprintf(path, pl, "%s%s", _PATH_TTYOPT, dev);
+     /* Turn slashes into dots, for Solaris case (e.g. /dev/term/a) */
+-    for (p = path + strlen(_PATH_TTYOPT); *p != 0; ++p)
+-	if (*p == '/')
+-	    *p = '.';
++    newdev = malloc(strlen(dev) + 1);
++    if (newdev == NULL)
++        novm("tty init file dev name");
++    strcpy(newdev, dev);
++    for (p = newdev; *p != 0; ++p)
++        if (*p == '/')
++            *p = '.';
++    /* resolve with transformed device name */
++    path = path_resolve(PATH_ID_TTYOPT, 1, newdev);
++    free(newdev);
+     option_priority = OPRIO_CFGFILE;
+     ret = options_from_file(path, 0, 0, 1);
+     free(path);
+@@ -1441,7 +1442,7 @@ callfile(argv)
+     char **argv;
+ {
+     char *fname, *arg, *p;
+-    int l, ok;
++    int ok;
+ 
+     arg = *argv;
+     ok = 1;
+@@ -1463,12 +1464,8 @@ callfile(argv)
+ 	option_error("call option value may not contain .. or start with /");
+ 	return 0;
+     }
+-
+-    l = strlen(arg) + strlen(_PATH_PEERFILES) + 1;
+-    if ((fname = (char *) malloc(l)) == NULL)
+-	novm("call file name");
+-    slprintf(fname, l, "%s%s", _PATH_PEERFILES, arg);
+-
++    
++    fname = path_resolve(PATH_ID_PEERFILES, 1, arg);
+     ok = options_from_file(fname, 1, 1, 1);
+ 
+     free(fname);
+@@ -1538,6 +1535,41 @@ setdomain(argv)
+ }
+ 
+ static int
++setpath(argv)
++    char **argv;
++{
++    char *opt;
++    size_t opt_length, equal_offset;
++    int path_id;
++    
++    opt = *argv;
++    opt_length = strlen(opt);
++    
++    for (equal_offset = 0; equal_offset < opt_length; equal_offset++) {
++        if (opt[equal_offset] == '=') {
++            break;
++        }
++    }
++    if (equal_offset == opt_length) {
++        option_error("path option '%s' contains no equal sign", *argv);
++        return 0;
++    }
++    
++    path_id = path_find_id(opt, equal_offset);
++    if (path_id < 0) {
++        option_error("unknown path option '%s'", *argv);
++        return 0;
++    }
++    
++    if (!path_set(path_id, opt + equal_offset + 1)) {
++        option_error("path option '%s' has invalid value", *argv);
++        return 0;
++    }
++    
++    return 1;
++}
++
++static int
+ setlogfile(argv)
+     char **argv;
+ {
+@@ -1602,14 +1634,7 @@ loadplugin(argv)
+     const char *vers;
+ 
+     if (strchr(arg, '/') == 0) {
+-	const char *base = _PATH_PLUGIN;
+-	int l = strlen(base) + strlen(arg) + 2;
+-	path = malloc(l);
+-	if (path == 0)
+-	    novm("plugin file path");
+-	strlcpy(path, base, l);
+-	strlcat(path, "/", l);
+-	strlcat(path, arg, l);
++        path = path_resolve(PATH_ID_PLUGIN, 1, arg);
+     }
+     handle = dlopen(path, RTLD_GLOBAL | RTLD_NOW);
+     if (handle == 0) {
+diff --git a/pppd/pathnames.h b/pppd/pathnames.h
+index a33f046..dc1b506 100644
+--- a/pppd/pathnames.h
++++ b/pppd/pathnames.h
+@@ -18,6 +18,8 @@
+ #define _ROOT_PATH
+ #endif
+ 
++#include "patchlevel.h"
++
+ #define _PATH_UPAPFILE 	 _ROOT_PATH "/etc/ppp/pap-secrets"
+ #define _PATH_CHAPFILE 	 _ROOT_PATH "/etc/ppp/chap-secrets"
+ #define _PATH_SRPFILE 	 _ROOT_PATH "/etc/ppp/srp-secrets"
+@@ -27,13 +29,13 @@
+ #define _PATH_IPPREUP	 _ROOT_PATH "/etc/ppp/ip-pre-up"
+ #define _PATH_AUTHUP	 _ROOT_PATH "/etc/ppp/auth-up"
+ #define _PATH_AUTHDOWN	 _ROOT_PATH "/etc/ppp/auth-down"
+-#define _PATH_TTYOPT	 _ROOT_PATH "/etc/ppp/options."
++#define _PATH_TTYOPT	 _ROOT_PATH "/etc/ppp/options.%1"
+ #define _PATH_CONNERRS	 _ROOT_PATH "/etc/ppp/connect-errors"
+-#define _PATH_PEERFILES	 _ROOT_PATH "/etc/ppp/peers/"
++#define _PATH_PEERFILES	 _ROOT_PATH "/etc/ppp/peers/%1"
+ #define _PATH_RESOLV	 _ROOT_PATH "/etc/ppp/resolv.conf"
+ 
+-#define _PATH_USEROPT	 ".ppprc"
+-#define	_PATH_PSEUDONYM	 ".ppp_pseudonym"
++#define _PATH_USEROPT	 "%1/.ppprc"
++#define	_PATH_PSEUDONYM	 "%1/.ppp_pseudonym"
+ 
+ #ifdef INET6
+ #define _PATH_IPV6UP     _ROOT_PATH "/etc/ppp/ipv6-up"
+@@ -57,9 +59,9 @@
+ 
+ #ifdef PLUGIN
+ #ifdef __STDC__
+-#define _PATH_PLUGIN	DESTDIR "/lib/pppd/" VERSION
++#define _PATH_PLUGIN	DESTDIR "/lib/pppd/" VERSION "/%1"
+ #else /* __STDC__ */
+-#define _PATH_PLUGIN	"/usr/lib/pppd"
++#define _PATH_PLUGIN	"/usr/lib/pppd/%1"
+ #endif /* __STDC__ */
+ 
+ #endif /* PLUGIN */
+diff --git a/pppd/plugins/rp-pppoe/plugin.c b/pppd/plugins/rp-pppoe/plugin.c
+index a8c2bb4..0376a64 100644
+--- a/pppd/plugins/rp-pppoe/plugin.c
++++ b/pppd/plugins/rp-pppoe/plugin.c
+@@ -33,7 +33,7 @@ static char const RCSID[] =
+ #include "pppd/lcp.h"
+ #include "pppd/ipcp.h"
+ #include "pppd/ccp.h"
+-/* #include "pppd/pathnames.h" */
++#include "pppd/pppd_paths.h"
+ 
+ #include <linux/types.h>
+ #include <sys/ioctl.h>
+@@ -51,12 +51,6 @@ static char const RCSID[] =
+ #include <linux/ppp_defs.h>
+ #include <linux/if_pppox.h>
+ 
+-#ifndef _ROOT_PATH
+-#define _ROOT_PATH ""
+-#endif
+-
+-#define _PATH_ETHOPT         _ROOT_PATH "/etc/ppp/options."
+-
+ char pppd_version[] = VERSION;
+ 
+ /* From sys-linux.c in pppd -- MUST FIX THIS! */
+@@ -281,11 +275,12 @@ PPPOEDisconnectDevice(void)
+ static void
+ PPPOEDeviceOptions(void)
+ {
+-    char buf[256];
+-    snprintf(buf, 256, _PATH_ETHOPT "%s", devnam);
+-    if (!options_from_file(buf, 0, 0, 1))
+-	exit(EXIT_OPTION_ERROR);
+-
++    char *path;
++    
++    path = path_resolve(PATH_ID_TTYOPT, 1, devnam);
++    if (!options_from_file(path, 0, 0, 1))
++        exit(EXIT_OPTION_ERROR);
++    free(path);
+ }
+ 
+ struct channel pppoe_channel;
+diff --git a/pppd/pppd_paths.c b/pppd/pppd_paths.c
+new file mode 100644
+index 0000000..fbeea44
+--- /dev/null
++++ b/pppd/pppd_paths.c
+@@ -0,0 +1,222 @@
++/*
++ * pppd_paths.c - runtime configuration of paths for pppd
++ *
++ * Copyright (c) 2013 Ambroz Bizjak.  All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in
++ *    the documentation and/or other materials provided with the
++ *    distribution.
++ *
++ * 3. The name(s) of the authors of this software must not be used to
++ *    endorse or promote products derived from this software without
++ *    prior written permission.
++ *
++ * THE AUTHORS OF THIS SOFTWARE DISCLAIM ALL WARRANTIES WITH REGARD TO
++ * THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
++ * AND FITNESS, IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
++ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++ * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
++ * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++ */
++
++#include <assert.h>
++#include <stdlib.h>
++#include <string.h>
++#include <stdarg.h>
++
++#include "pathnames.h"
++#include "pppd.h"
++#include "pppd_paths.h"
++
++struct pppd_path {
++    char const *name;
++    char const *default_val;
++    int num_subst;
++};
++
++// Keep in sync with pppd_paths.h!
++static struct pppd_path const path_infos[NUM_PATH_IDS] = {
++    {"pid-dir", _PATH_VARRUN, 0},
++    {"pap-secrets", _PATH_UPAPFILE, 0},
++    {"chap-secrets", _PATH_CHAPFILE, 0},
++    {"srp-secrets", _PATH_SRPFILE, 0},
++    {"options", _PATH_SYSOPTIONS, 0},
++    {"ip-up", _PATH_IPUP, 0},
++    {"ip-down", _PATH_IPDOWN, 0},
++    {"ip-pre-up", _PATH_IPPREUP, 0},
++    {"auth-up", _PATH_AUTHUP, 0},
++    {"auth-down", _PATH_AUTHDOWN, 0},
++    {"options.ttyname", _PATH_TTYOPT, 1},
++    {"ppp-connect-errors", _PATH_CONNERRS, 0},
++    {"peer-files", _PATH_PEERFILES, 1},
++    {"resolv.conf", _PATH_RESOLV, 0},
++    {".ppprc", _PATH_USEROPT, 1},
++    {".ppp_pseudonym", _PATH_PSEUDONYM, 1},
++#ifdef INET6
++    {"ipv6-up", _PATH_IPV6UP, 0},
++    {"ipv6-down", _PATH_IPV6DOWN, 0},
++#endif
++#ifdef IPX_CHANGE
++    {"ipx-up", _PATH_IPXUP, 0},
++    {"ipx-down", _PATH_IPXDOWN, 0},
++#endif
++    {"pppdb", _PATH_PPPDB, 0},
++#ifdef PLUGIN
++    {"plugins", _PATH_PLUGIN, 1},
++#endif
++};
++
++static char *path_values[NUM_PATH_IDS];
++
++static char const * path_get (int path_id)
++{
++    return path_values[path_id] ? path_values[path_id] : path_infos[path_id].default_val;
++}
++
++static int verify_path (char const *value, int num_subst)
++{
++    size_t length, i;
++    assert(value);
++    assert(num_subst >= 0);
++    
++    length = strlen(value);
++    
++    for (i = 0; i < length; i++) {
++        if (value[i] != '%') {
++            continue;
++        }
++        if (length - i < 2) {
++            return 0;
++        }
++        if (value[i + 1] == '%') {
++            i++;
++            continue;
++        }
++        if (value[i + 1] < '1' || value[i + 1] > '9') {
++            return 0;
++        }
++        int subst_index = value[i + 1] - '0';
++        if (subst_index > num_subst) {
++            return 0;
++        }
++        i++;
++    }
++    
++    return 1;
++}
++
++int path_find_id (char const *name, size_t name_length)
++{
++    int i;
++    assert(name);
++    
++    for (i = 0; i < NUM_PATH_IDS; i++) {
++        if (strlen(path_infos[i].name) == name_length && !memcmp(path_infos[i].name, name, name_length)) {
++            return i;
++        }
++    }
++    
++    return -1;
++}
++
++int path_set (int path_id, char const *value)
++{
++    char *copy;
++    assert(path_id >= 0 && path_id < NUM_PATH_IDS);
++    assert(value);
++    
++    if (!verify_path(value, path_infos[path_id].num_subst)) {
++        return 0;
++    }
++    
++    copy = malloc(strlen(value) + 1);
++    if (!copy) {
++        novm("path set value");
++    }
++    strcpy(copy, value);
++    
++    free(path_values[path_id]);
++    path_values[path_id] = copy;
++    
++    return 1;
++}
++
++// should return const but then we get warnings
++char * path_get_simple (int path_id)
++{
++    assert(path_id >= 0 && path_id < NUM_PATH_IDS);
++    assert(path_infos[path_id].num_subst == 0);
++    
++    return (char *)path_get(path_id);
++}
++
++char * path_resolve (int path_id, int num_subst, ...)
++{
++    va_list ap;
++    char const *value, *subst[9];
++    char *result;
++    size_t length, result_length, i;
++    int j;
++    assert(path_id >= 0 && path_id < NUM_PATH_IDS);
++    assert(num_subst == path_infos[path_id].num_subst);
++    
++    value = path_get(path_id);
++    length = strlen(value);
++    result = NULL;
++    result_length = 0;
++    
++    assert(verify_path(value, num_subst));
++    
++    va_start(ap, num_subst);
++    for (j = 0; j < num_subst; j++) {
++        subst[j] = va_arg(ap, char const *);
++    }
++    va_end(ap);
++    
++for_real:
++    for (i = 0; i < length; i++) {
++        if (value[i] != '%') {
++            if (result) {
++                result[result_length] = value[i];
++            }
++            result_length++;
++            continue;
++        }
++        if (value[i + 1] == '%') {
++            if (result) {
++                result[result_length] = '%';
++            }
++            result_length++;
++            i++;
++            continue;
++        }
++        char const *this_subst = subst[(value[i + 1] - '0') - 1];
++        if (result) {
++            strcpy(result + result_length, this_subst);
++        }
++        result_length += strlen(this_subst);
++        i++;
++    }
++    
++    if (!result) {
++        result = malloc(result_length + 1);
++        if (!result) {
++            novm("path resolve result");
++        }
++        result_length = 0;
++        goto for_real;
++    }
++    
++    result[result_length] = '\0';
++    
++    return result;
++}
+diff --git a/pppd/pppd_paths.h b/pppd/pppd_paths.h
+new file mode 100644
+index 0000000..4974fbd
+--- /dev/null
++++ b/pppd/pppd_paths.h
+@@ -0,0 +1,74 @@
++/*
++ * pppd_paths.h - runtime configuration of paths for pppd
++ *
++ * Copyright (c) 2013 Ambroz Bizjak.  All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ *
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ *
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in
++ *    the documentation and/or other materials provided with the
++ *    distribution.
++ *
++ * 3. The name(s) of the authors of this software must not be used to
++ *    endorse or promote products derived from this software without
++ *    prior written permission.
++ *
++ * THE AUTHORS OF THIS SOFTWARE DISCLAIM ALL WARRANTIES WITH REGARD TO
++ * THIS SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
++ * AND FITNESS, IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
++ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++ * AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
++ * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++ */
++
++#ifndef PPPD_PATHS_H
++#define PPPD_PATHS_H
++
++#include <stddef.h>
++
++// Keep in sync with pppd_paths.c!
++enum {
++    PATH_ID_VARRUN = 0,
++    PATH_ID_UPAPFILE,
++    PATH_ID_CHAPFILE,
++    PATH_ID_SRPFILE,
++    PATH_ID_SYSOPTIONS,
++    PATH_ID_IPUP,
++    PATH_ID_IPDOWN,
++    PATH_ID_IPPREUP,
++    PATH_ID_AUTHUP,
++    PATH_ID_AUTHDOWN,
++    PATH_ID_TTYOPT,
++    PATH_ID_CONNERRS,
++    PATH_ID_PEERFILES,
++    PATH_ID_RESOLV,
++    PATH_ID_USEROPT,
++    PATH_ID_PSEUDONYM,
++#ifdef INET6
++    PATH_ID_IPV6UP,
++    PATH_ID_IPV6DOWN,
++#endif
++#ifdef IPX_CHANGE
++    PATH_ID_IPXUP,
++    PATH_ID_IPXDOWN,
++#endif
++    PATH_ID_PPPDB,
++#ifdef PLUGIN
++    PATH_ID_PLUGIN,
++#endif
++    NUM_PATH_IDS,
++};
++
++int path_find_id (char const *name, size_t name_length);
++int path_set (int path_id, char const *value);
++char * path_get_simple (int path_id);
++char * path_resolve (int path_id, int num_subst, ...);
++
++#endif
