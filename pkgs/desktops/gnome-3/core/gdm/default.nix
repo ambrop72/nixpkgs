@@ -40,10 +40,9 @@ stdenv.mkDerivation rec {
   enableParallelBuilding = true;
 
   # Disable Access Control because our X does not support FamilyServerInterpreted yet
-  patches = [ ./sessions_dir.patch
-              ./gdm-x-session_extra_args.patch
-              ./gdm-session-worker_xserver-path.patch
-             ];
+  # This patch also includes some hacks that allows running setupCommands, see
+  # nixos/modules/services/x11/display-managers/gdm.nix.
+  patches = [ ./gdm-hacks.patch ];
 
   postInstall = ''
     # Prevent “Could not parse desktop file orca-autostart.desktop or it references a not found TryExec binary”

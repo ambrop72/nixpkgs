@@ -1,0 +1,124 @@
+diff -urN gdm-3.26.1.orig/daemon/gdm-session.c gdm-3.26.1/daemon/gdm-session.c
+--- gdm-3.26.1.orig/daemon/gdm-session.c	2017-10-03 22:18:28.000000000 +0200
++++ gdm-3.26.1/daemon/gdm-session.c	2018-07-01 18:28:17.256466979 +0200
+@@ -344,12 +344,17 @@
+         char **search_dirs;
+ 
+         static const char *x_search_dirs[] = {
++                "/var/empty",
+                 "/etc/X11/sessions/",
+                 DMCONFDIR "/Sessions/",
+                 DATADIR "/gdm/BuiltInSessions/",
+                 DATADIR "/xsessions/",
+         };
+ 
++        if (getenv("GDM_SESSIONS_DIR") != NULL) {
++                x_search_dirs[0] = getenv("GDM_SESSIONS_DIR");
++        };
++
+         static const char *wayland_search_dir = DATADIR "/wayland-sessions/";
+ 
+         search_array = g_array_new (TRUE, TRUE, sizeof (char *));
+diff -urN gdm-3.26.1.orig/daemon/gdm-session-worker.c gdm-3.26.1/daemon/gdm-session-worker.c
+--- gdm-3.26.1.orig/daemon/gdm-session-worker.c	2017-10-03 22:18:28.000000000 +0200
++++ gdm-3.26.1/daemon/gdm-session-worker.c	2018-07-01 19:46:36.796490388 +0200
+@@ -1515,6 +1515,16 @@
+         g_object_unref (dir);
+ }
+ 
++static void
++gdm_session_worker_forward_var (GdmSessionWorker *worker, char const *var)
++{
++        char const *value = g_getenv(var);
++        if (value != NULL) {
++                g_debug ("forwarding %s= %s", var, value);
++                gdm_session_worker_set_environment_variable(worker, var, value);
++        }
++}
++
+ static gboolean
+ gdm_session_worker_accredit_user (GdmSessionWorker  *worker,
+                                   GError           **error)
+@@ -1559,6 +1569,9 @@
+                 goto out;
+         }
+ 
++        gdm_session_worker_forward_var(worker, "GDM_X_SERVER_EXTRA_ARGS");
++        gdm_session_worker_forward_var(worker, "GDM_X_SESSION_WRAPPER");
++
+         gdm_session_worker_update_environment_from_passwd_info (worker,
+                                                                 uid,
+                                                                 gid,
+diff -urN gdm-3.26.1.orig/daemon/gdm-x-session.c gdm-3.26.1/daemon/gdm-x-session.c
+--- gdm-3.26.1.orig/daemon/gdm-x-session.c	2017-09-28 19:52:53.000000000 +0200
++++ gdm-3.26.1/daemon/gdm-x-session.c	2018-07-01 19:46:12.745490479 +0200
+@@ -211,6 +211,7 @@
+         char     *vt_string = NULL;
+         char     *display_number;
+         gsize     display_number_size;
++        gchar   **xserver_extra_args = NULL;
+ 
+         auth_file = prepare_auth_file ();
+ 
+@@ -285,6 +286,17 @@
+         if (state->debug_enabled) {
+                 g_ptr_array_add (arguments, "-core");
+         }
++
++        if (g_getenv ("GDM_X_SERVER_EXTRA_ARGS") != NULL) {
++                g_debug ("using GDM_X_SERVER_EXTRA_ARGS: %s", g_getenv("GDM_X_SERVER_EXTRA_ARGS"));
++                xserver_extra_args = g_strsplit(g_getenv("GDM_X_SERVER_EXTRA_ARGS"), " ", -1);
++                for (gchar **extra_arg = xserver_extra_args; *extra_arg; extra_arg++) {
++                        if (strlen(*extra_arg) < 1) continue;
++			g_debug ("adding: %s", *extra_arg);
++                        g_ptr_array_add (arguments, *extra_arg);
++                }
++        }
++
+         g_ptr_array_add (arguments, NULL);
+ 
+         subprocess = g_subprocess_launcher_spawnv (launcher,
+@@ -332,6 +344,7 @@
+ 
+         is_running = TRUE;
+ out:
++	g_strfreev(xserver_extra_args);
+         g_clear_pointer (&auth_file, g_free);
+         g_clear_object (&data_stream);
+         g_clear_object (&subprocess);
+@@ -664,18 +677,34 @@
+                                                           state->session_command,
+                                                           NULL);
+         } else {
++                char const *session_wrapper;
++                char *eff_session_command;
+                 int ret;
+                 char **argv;
+ 
+-                ret = g_shell_parse_argv (state->session_command,
++                session_wrapper = g_getenv("GDM_X_SESSION_WRAPPER");
++                if (session_wrapper != NULL) {
++                        char *quoted_wrapper = g_shell_quote(session_wrapper);
++                        eff_session_command = g_strjoin(" ", quoted_wrapper, state->session_command, NULL);
++                        g_free(quoted_wrapper);
++                } else {
++                        eff_session_command = state->session_command;
++                }
++
++                ret = g_shell_parse_argv (eff_session_command,
+                                           NULL,
+                                           &argv,
+                                           &error);
+ 
++                if (session_wrapper != NULL) {
++                        g_free(eff_session_command);
++                }
++
+                 if (!ret) {
+                         g_debug ("could not parse session arguments: %s", error->message);
+                         goto out;
+                 }
++
+                 subprocess = g_subprocess_launcher_spawnv (launcher,
+                                                            (const char * const *) argv,
+                                                            &error);
