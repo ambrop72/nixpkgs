@@ -26,10 +26,10 @@ rec {
   };
 
   beta = generic {
-    version = "415.18";
-    sha256_64bit = "0l463rhxybwpmq86bd5sg8nxakl0awvdk1nf1lbm1d88a80m4paq";
-    settingsSha256 = "1zk1g8hl6ifqpygqvc1qrid8zhcl5rq553d47sqkd0ry6f7agzz4";
-    persistencedSha256 = "0zb6sd1vjbz0ynvp0qz13zqj1j1sq9j0si09c41nzj9n7z3rq2dz";
+    version = "415.22";
+    sha256_64bit = "16svfhasdgdbv973pp1bj2vqi4mq0y0jaf46fda8ar2v15z8y612";
+    settingsSha256 = "0bqbcc5h2562nf2099xzp8bn1z2vdpfl0bfk6xk01ipcv3j9yfp7";
+    persistencedSha256 = "09h7xng38d0z4yyqjg36ha81sqhzfmcdfdsgr217xa8s0bi61zqp";
   };
 
   legacy_340 = generic {
