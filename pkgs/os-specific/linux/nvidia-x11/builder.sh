@@ -74,7 +74,6 @@ installPhase() {
     if [ -n "$bin" ]; then
         # Install the X drivers.
         mkdir -p $bin/lib/xorg/modules
-        cp -p libnvidia-wfb.* $bin/lib/xorg/modules/
         mkdir -p $bin/lib/xorg/modules/drivers
         cp -p nvidia_drv.so $bin/lib/xorg/modules/drivers
         mkdir -p $bin/lib/xorg/modules/extensions
