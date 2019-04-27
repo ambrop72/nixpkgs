@@ -1,4 +1,4 @@
-{ stdenv, lib, makeWrapper
+{ stdenv, lib, makeWrapperNew
 , vimUtils
 , bundlerEnv, ruby
 , nodejs
@@ -64,12 +64,12 @@ let
             exit 1
         fi
 
-        makeWrapper "$(readlink -v --canonicalize-existing "${bin}")" \
-          "$out/bin/nvim" --add-flags " \
-        --cmd \"${if withNodeJs then "let g:node_host_prog='${nodePackages.neovim}/bin/neovim-node-host'" else "let g:loaded_node_provider=1"}\" \
-        --cmd \"${if withPython then "let g:python_host_prog='$out/bin/nvim-python'" else "let g:loaded_python_provider = 1"}\" \
-        --cmd \"${if withPython3 then "let g:python3_host_prog='$out/bin/nvim-python3'" else "let g:loaded_python3_provider = 1"}\" \
-        --cmd \"${if withRuby then "let g:ruby_host_prog='$out/bin/nvim-ruby'" else "let g:loaded_ruby_provider=1"}\" " \
+        makeWrapperNew "$(readlink -v --canonicalize-existing "${bin}")" \
+          "$out/bin/nvim" \
+        --args 2 --cmd "${if withNodeJs then "let g:node_host_prog='${nodePackages.neovim}/bin/neovim-node-host'" else "let g:loaded_node_provider=1"}" \
+        --args 2 --cmd "${if withPython then "let g:python_host_prog='$out/bin/nvim-python'" else "let g:loaded_python_provider = 1"}" \
+        --args 2 --cmd "${if withPython3 then "let g:python3_host_prog='$out/bin/nvim-python3'" else "let g:loaded_python3_provider = 1"}" \
+        --args 2 --cmd "${if withRuby then "let g:ruby_host_prog='$out/bin/nvim-ruby'" else "let g:loaded_ruby_provider=1"}" \
         --suffix PATH : ${binPath} \
         ${optionalString withRuby '' --set GEM_HOME ${rubyEnv}/${rubyEnv.ruby.gemPath}'' }
       ''
@@ -81,9 +81,9 @@ let
           --replace 'Name=Neovim' 'Name=WrappedNeovim'
       ''
       + optionalString withPython ''
-        makeWrapper ${pythonEnv}/bin/python $out/bin/nvim-python --unset PYTHONPATH
+        makeWrapperNew ${pythonEnv}/bin/python $out/bin/nvim-python --unset PYTHONPATH
       '' + optionalString withPython3 ''
-        makeWrapper ${python3Env}/bin/python3 $out/bin/nvim-python3 --unset PYTHONPATH
+        makeWrapperNew ${python3Env}/bin/python3 $out/bin/nvim-python3 --unset PYTHONPATH
       '' + optionalString withRuby ''
         ln -s ${rubyEnv}/bin/neovim-ruby-host $out/bin/nvim-ruby
       '' + optionalString vimAlias ''
@@ -111,14 +111,14 @@ let
 
         # this relies on a patched neovim, see
         # https://github.com/neovim/neovim/issues/9413
-        wrapProgram $out/bin/nvim \
+        wrapProgramNew $out/bin/nvim \
           --set NVIM_SYSTEM_RPLUGIN_MANIFEST $out/rplugin.vim \
-          --add-flags "-u ${vimUtils.vimrcFile configure}"
+          --args 2 -u "${vimUtils.vimrcFile configure}"
       '';
 
     preferLocalBuild = true;
 
-    buildInputs = [makeWrapper];
+    buildInputs = [makeWrapperNew];
     passthru = { unwrapped = neovim; };
 
     meta = neovim.meta // {

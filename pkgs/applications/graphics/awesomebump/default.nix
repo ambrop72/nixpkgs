@@ -1,4 +1,4 @@
-{ lib, stdenv, fetchgit, qtbase, qmake, makeWrapper, qtscript, flex, bison, qtdeclarative }:
+{ lib, stdenv, fetchgit, qtbase, qmake, makeWrapperNew, qtscript, flex, bison, qtdeclarative }:
 
 
 let
@@ -27,9 +27,9 @@ in stdenv.mkDerivation rec {
 
   inherit src;
 
-  buildInputs = [ qtbase qtscript qtdeclarative ];
+  buildInputs = [ qtbase qtscript qtdeclarative makeWrapperNew ];
 
-  nativeBuildInputs = [ qmake makeWrapper ];
+  nativeBuildInputs = [ qmake ];
 
   preBuild = ''
     ln -sf ${qtnproperty}/bin/QtnPEG Sources/utils/QtnProperty/bin-linux/QtnPEG
@@ -43,8 +43,8 @@ in stdenv.mkDerivation rec {
     cp -prd Bin/Configs Bin/Core $d/
 
     # AwesomeBump expects to find Core and Configs in its current directory.
-    makeWrapper $d/AwesomeBump $out/bin/AwesomeBump \
-        --run "cd $d"
+    makeWrapperNew $d/AwesomeBump $out/bin/AwesomeBump \
+        --cd "$d"
   '';
 
   # $ cd Sources; qmake; make ../workdir/linux-g++-dgb-gl4/obj/glwidget.o
