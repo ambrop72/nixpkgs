@@ -69,6 +69,10 @@ stdenv.mkDerivation ({
          patch extends the search path by "/run/current-system/sw/bin". */
       ./fix_path_attribute_in_getconf.patch
 
+      ./no-hardware-capability-directories.patch
+
+      ./dont-stat-library-directories.patch
+
       /* Allow running with RHEL 6 -like kernels.  The patch adds an exception
         for glibc to accept 2.6.32 and to tag the ELFs as 2.6.32-compatible
         (otherwise the loader would refuse libc).

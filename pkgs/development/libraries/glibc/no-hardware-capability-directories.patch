@@ -1,0 +1,37 @@
+diff --git a/elf/dl-hwcaps.c b/elf/dl-hwcaps.c
+index 23482a8..33060ba 100644
+--- a/elf/dl-hwcaps.c
++++ b/elf/dl-hwcaps.c
+@@ -37,6 +37,26 @@ const struct r_strlenpair *
+ _dl_important_hwcaps (const char *platform, size_t platform_len, size_t *sz,
+ 		      size_t *max_capstrlen)
+ {
++  // There shall be no hardware capability directories on NixOS.
++  // Return a single string which is an empty string representing
++  // no capability directory.
++
++  (void)platform;
++  (void)platform_len;
++
++  struct r_strlenpair *result = (struct r_strlenpair *) malloc (1 * sizeof (*result) + 1);
++  if (result == NULL)
++    _dl_signal_error (ENOMEM, NULL, NULL,
++		      N_("cannot create capability list"));
++  
++  result[0].str = (char *) (result + 1);
++  result[0].len = 0;
++  *sz = 1;
++  *max_capstrlen = 0;
++
++  return result;
++  
++#if 0
+   uint64_t hwcap_mask = GET_HWCAP_MASK();
+   /* Determine how many important bits are set.  */
+   uint64_t masked = GLRO(dl_hwcap) & hwcap_mask;
+@@ -305,4 +325,5 @@ _dl_important_hwcaps (const char *platform, size_t platform_len, size_t *sz,
+   *max_capstrlen = result[0].len;
+ 
+   return result;
++#endif
+ }

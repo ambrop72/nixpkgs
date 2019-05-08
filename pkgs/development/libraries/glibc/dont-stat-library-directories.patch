@@ -1,0 +1,20 @@
+diff --git a/elf/dl-load.c b/elf/dl-load.c
+index 7554a99..fabc1a5 100644
+--- a/elf/dl-load.c
++++ b/elf/dl-load.c
+@@ -1755,6 +1755,7 @@ open_path (const char *name, size_t namelen, int mode,
+ 	      else if (loader == NULL
+ 		       || GL(dl_ns)[loader->l_ns]._ns_loaded->l_auditing == 0)
+ 		{
++#if 0
+ 		  /* We failed to open machine dependent library.  Let's
+ 		     test whether there is any directory at all.  */
+ 		  struct stat64 st;
+@@ -1767,6 +1768,7 @@ open_path (const char *name, size_t namelen, int mode,
+ 		    this_dir->status[cnt] = nonexisting;
+ 		  else
+ 		    this_dir->status[cnt] = existing;
++#endif
+ 		}
+ 	    }
+ 
